@@ -1,0 +1,1131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?
+  plan      String   @default("free")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                  TenantUser[]
+  products               Product[]
+  customers              Customer[]
+  orders                 Order[]
+  stockMovements         StockMovement[]
+  financialTransactions  FinancialTransaction[]
+  auditLogs              AuditLog[]
+  roles                  Role[]
+  invitations            Invitation[]
+  settings               AppSetting[]
+  locations              StockLocation[]
+  lots                   Lot[]
+  costCenters            CostCenter[]
+  productionBatches      ProductionBatch[]
+  consignments           Consignment[]
+  consignmentSettlements ConsignmentSettlement[]
+  branches               Branch[]
+  documents              GeneratedDocument[]
+  subscriptionPlans      SubscriptionPlan[]
+  subscriptionRequests   SubscriptionRequest[]
+  subscriptions          Subscription[]
+  paymentProviderConfigs PaymentProviderConfig[]
+  paymentIntents         PaymentIntent[]
+  paymentTransactions    PaymentTransaction[]
+  paymentWebhookEvents   PaymentWebhookEvent[]
+  paymentReconciliations PaymentReconciliation[]
+  crmPipelines           CrmPipeline[]
+  crmStages              CrmStage[]
+  crmDeals               CrmDeal[]
+  crmActivities          CrmActivity[]
+  communicationTemplates CommunicationTemplate[]
+  communicationQueues    CommunicationQueue[]
+
+  // Production Advanced
+  greenCoffeeLots        GreenCoffeeLot[]
+  inputReservations      ProductionInputReservation[]
+  productionRecipes      ProductionRecipe[]
+  productionRecipeInputs ProductionRecipeInput[]
+  productionRecipeExtras ProductionRecipeExtra[]
+  roastProfiles          RoastProfile[]
+  b2bCatalogItems        B2BCatalogItem[]
+  // Quality
+  qualityReviews         QualityReview[]
+  sensoryDescriptors     SensoryDescriptor[]
+  qualityDefects         QualityDefect[]
+  publicLotTraces        PublicLotTrace[]
+}
+
+model GeneratedDocument {
+  id                String    @id @default(uuid())
+  tenantId          String
+  type              String // receipt, shipment, settlement, production, statement, report
+  status            String    @default("active") // active, voided
+  sequenceNumber    Int       @default(autoincrement())
+  referenceType     String?
+  referenceId       String?
+  customerId        String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  title             String
+  snapshotJson      String    @db.Text
+  generatedByUserId String
+  generatedAt       DateTime  @default(now())
+  voidedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Branch {
+  id           String    @id @default(uuid())
+  tenantId     String
+  name         String
+  type         String    @default("loja") // matriz, loja, estoque, torrefacao, escritorio
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String    @default("BR")
+  isDefault    Boolean   @default(false)
+  status       String    @default("active") // active, inactive
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  tenantUsers TenantUser[]
+  invitations Invitation[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenants         TenantUser[]
+  auditLogs       AuditLog[]
+  invitationsSent Invitation[] @relation("InvitedBy")
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  tenantId    String? // null if system default role
+  name        String
+  description String?
+  systemKey   String?
+  isSystem    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id])
+  tenantUsers TenantUser[]
+  permissions RolePermission[]
+  invitations Invitation[]
+}
+
+model Permission {
+  key         String  @id
+  module      String
+  action      String
+  description String?
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId        String
+  permissionKey String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+}
+
+model TenantUser {
+  tenantId    String
+  userId      String
+  roleId      String?
+  branchId    String?
+  status      String    @default("active") // active, suspended, inactive
+  suspendedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+  role   Role?   @relation(fields: [roleId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@id([tenantId, userId])
+}
+
+model Invitation {
+  id              String    @id @default(uuid())
+  tenantId        String
+  email           String
+  roleId          String?
+  branchId        String?
+  status          String    @default("pending") // pending, accepted, expired, canceled
+  tokenHash       String
+  invitedByUserId String?
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  tenant        Tenant  @relation(fields: [tenantId], references: [id])
+  role          Role?   @relation(fields: [roleId], references: [id])
+  branch        Branch? @relation(fields: [branchId], references: [id])
+  invitedByUser User?   @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+}
+
+model SubscriptionPlan {
+  id           String    @id @default(uuid())
+  tenantId     String
+  name         String
+  description  String?
+  frequency    String    @default("monthly") // weekly, biweekly, monthly
+  packageCount Int       @default(1)
+  weight       Float?
+  price        Float
+  active       Boolean   @default(true)
+  featured     Boolean   @default(false)
+  productId    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  product       Product?              @relation(fields: [productId], references: [id])
+  requests      SubscriptionRequest[]
+  subscriptions Subscription[]
+}
+
+model SubscriptionRequest {
+  id            String   @id @default(uuid())
+  tenantId      String
+  planId        String
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  address       String?
+  notes         String?
+  status        String   @default("pending") // pending, contacted, approved, rejected
+  customerId    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  plan           SubscriptionPlan     @relation(fields: [planId], references: [id])
+  customer       Customer?            @relation(fields: [customerId], references: [id])
+  paymentIntents PaymentIntent[]
+  crmDeals       CrmDeal[]
+  communications CommunicationQueue[]
+}
+
+model Subscription {
+  id            String    @id @default(uuid())
+  tenantId      String
+  planId        String
+  customerId    String
+  status        String    @default("active") // active, paused, cancelled
+  startedAt     DateTime  @default(now())
+  nextBillingAt DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id])
+  customer       Customer         @relation(fields: [customerId], references: [id])
+  paymentIntents PaymentIntent[]
+  crmDeals       CrmDeal[]
+}
+
+model Product {
+  id          String    @id @default(uuid())
+  tenantId    String
+  sku         String?
+  name        String
+  category    String
+  description String?
+  unit        String    @default("un")
+  unitCost    Float     @default(0)
+  unitPrice   Float     @default(0)
+  active      Boolean   @default(true)
+  minStock    Float     @default(0)
+  isInput     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
+  variants                   ProductVariant[]
+  orderItems                 OrderItem[]
+  stockMovements             StockMovement[]
+  lots                       Lot[]
+  productionRecipes          ProductionRecipe[]
+  b2bCatalogItems            B2BCatalogItem[]
+  productionBatches          ProductionBatch[] // Final product
+  productionInputs           ProductionInput[] // As input
+  consignmentItems           ConsignmentItem[]
+  consignmentSettlementItems ConsignmentSettlementItem[]
+  subscriptionPlans          SubscriptionPlan[]
+  qualityReviews             QualityReview[]
+  publicLotTraces            PublicLotTrace[]
+}
+
+model ProductVariant {
+  id        String  @id @default(uuid())
+  productId String
+  name      String
+  sku       String?
+  price     Float?
+
+  product        Product         @relation(fields: [productId], references: [id])
+  stockMovements StockMovement[]
+  orderItems     OrderItem[]
+}
+
+model StockLocation {
+  id       String @id @default(uuid())
+  tenantId String
+  name     String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  stockMovements StockMovement[]
+}
+
+model Lot {
+  id             String    @id @default(uuid())
+  tenantId       String
+  productId      String
+  code           String
+  initialQty     Float
+  currentQty     Float
+  manufacturedAt DateTime?
+  expiryDate     DateTime?
+  createdAt      DateTime  @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  stockMovements StockMovement[]
+}
+
+model StockMovement {
+  id            String    @id @default(uuid())
+  tenantId      String
+  productId     String
+  variantId     String?
+  lotId         String?
+  locationId    String?
+  movementType  String
+  qty           Float
+  unitCost      Float     @default(0)
+  reason        String?
+  notes         String?
+  referenceType String?
+  referenceId   String?
+  userId        String?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  product  Product         @relation(fields: [productId], references: [id])
+  variant  ProductVariant? @relation(fields: [variantId], references: [id])
+  lot      Lot?            @relation(fields: [lotId], references: [id])
+  location StockLocation?  @relation(fields: [locationId], references: [id])
+}
+
+model Customer {
+  id                      String    @id @default(uuid())
+  tenantId                String
+  type                    String    @default("b2c") // b2c, b2b, partner, supplier
+  name                    String
+  legalName               String?
+  documentType            String    @default("none") // cpf, cnpj, none
+  document                String?
+  email                   String?
+  phone                   String?
+  whatsapp                String?
+  city                    String?
+  state                   String?
+  status                  String    @default("active") // active, inactive, blocked
+  defaultPaymentTermsDays Int       @default(0)
+  creditLimit             Float?
+  notes                   String?
+  tags                    String?
+  createdBy               String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime?
+
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  addresses            CustomerAddress[]
+  orders               Order[]
+  consignments         Consignment[]
+  subscriptionRequests SubscriptionRequest[]
+  subscriptions        Subscription[]
+  paymentIntents       PaymentIntent[]
+  CrmDeal              CrmDeal[]
+  CrmActivity          CrmActivity[]
+  CommunicationQueue   CommunicationQueue[]
+}
+
+model CustomerAddress {
+  id           String  @id @default(uuid())
+  customerId   String
+  street       String
+  number       String
+  complement   String?
+  neighborhood String?
+  city         String
+  state        String
+  postalCode   String?
+  country      String  @default("BR")
+  isDefault    Boolean @default(false)
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model Order {
+  id              String    @id @default(uuid())
+  tenantId        String
+  customerId      String?
+  customerName    String?
+  channel         String    @default("pdv")
+  orderDate       DateTime  @default(now())
+  subtotal        Float
+  discount        Float     @default(0)
+  total           Float
+  estimatedCost   Float     @default(0)
+  estimatedProfit Float     @default(0)
+  estimatedMargin Float     @default(0)
+  paymentMethod   String?
+  paymentStatus   String    @default("pending")
+  status          String    @default("confirmed")
+  dueDate         DateTime?
+  notes           String?
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  customer              Customer?              @relation(fields: [customerId], references: [id])
+  items                 OrderItem[]
+  financialTransactions FinancialTransaction[]
+  paymentIntents        PaymentIntent[]
+  crmDeals              CrmDeal[]
+}
+
+model OrderItem {
+  id              String  @id @default(uuid())
+  orderId         String
+  productId       String
+  variantId       String?
+  name            String
+  sku             String?
+  qty             Float
+  unitPrice       Float
+  unitCost        Float   @default(0)
+  discount        Float   @default(0)
+  lineTotal       Float
+  estimatedProfit Float   @default(0)
+
+  order   Order           @relation(fields: [orderId], references: [id])
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+}
+
+model CostCenter {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  financialTransactions FinancialTransaction[]
+}
+
+model FinancialTransaction {
+  id            String    @id @default(uuid())
+  tenantId      String
+  orderId       String?
+  type          String
+  status        String    @default("pending")
+  category      String
+  description   String
+  amount        Float
+  paidAmount    Float     @default(0)
+  dueDate       DateTime?
+  paidAt        DateTime?
+  date          DateTime
+  paymentMethod String?
+  referenceId   String?
+  source        String?
+  createdBy     String?
+  costCenterId  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id])
+  order           Order?                  @relation(fields: [orderId], references: [id])
+  costCenter      CostCenter?             @relation(fields: [costCenterId], references: [id])
+  reconciliations PaymentReconciliation[]
+}
+
+model ProductionBatch {
+  id               String   @id @default(uuid())
+  tenantId         String
+  code             String
+  date             DateTime
+  finalProductId   String
+  finalProductName String
+  status           String   @default("draft") // "draft", "completed", "cancelled"
+
+  initialWeight Float
+  finalWeight   Float
+  finalQty      Float
+
+  yieldPercent Float
+  lossPercent  Float
+
+  hours            Float @default(0)
+  laborCostPerHour Float @default(0)
+
+  totalInputCost Float @default(0)
+  totalLaborCost Float @default(0)
+  totalExtraCost Float @default(0)
+  totalCost      Float @default(0)
+
+  unitCost Float @default(0)
+
+  responsible String?
+  notes       String?
+
+  createdBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Advanced Production Fields
+  recipeId        String?
+  roastProfileId  String?
+  plannedDate     DateTime?
+  masterRoasterId String?
+  costPerKg       Float     @default(0)
+  packagedQty     Int       @default(0)
+  finalLotCreated String?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [finalProductId], references: [id])
+
+  recipe       ProductionRecipe?            @relation(fields: [recipeId], references: [id])
+  roastProfile RoastProfile?                @relation(fields: [roastProfileId], references: [id])
+  reservations ProductionInputReservation[]
+
+  inputs     ProductionInput[]
+  extraCosts ProductionExtraCost[]
+  
+  qualityReviews QualityReview[]
+  publicLotTrace PublicLotTrace?
+}
+
+model ProductionInput {
+  id        String @id @default(uuid())
+  batchId   String
+  productId String
+  name      String
+  qty       Float
+  unitCost  Float
+
+  batch   ProductionBatch @relation(fields: [batchId], references: [id])
+  product Product         @relation(fields: [productId], references: [id])
+}
+
+model ProductionExtraCost {
+  id          String @id @default(uuid())
+  batchId     String
+  description String
+  amount      Float
+
+  batch ProductionBatch @relation(fields: [batchId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String?
+  action    String
+  tableName String
+  recordId  String
+  oldData   Json?
+  newData   Json?
+  ip        String?
+  timestamp DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+}
+
+model AppSetting {
+  tenantId String
+  key      String
+  value    String
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, key])
+}
+
+// Consignments
+
+model Consignment {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  partnerId          String
+  partnerName        String
+  date               DateTime
+  expectedReturnDate DateTime?
+  status             String    @default("open") // open, due_soon, overdue, partially_settled, closed, cancelled
+  totalValue         Float     @default(0)
+  totalCost          Float     @default(0)
+  notes              String?
+  createdBy          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  partner Customer @relation(fields: [partnerId], references: [id])
+
+  items       ConsignmentItem[]
+  settlements ConsignmentSettlement[]
+}
+
+model ConsignmentItem {
+  id            String @id @default(uuid())
+  consignmentId String
+  productId     String
+  name          String
+  sentQty       Float
+  soldQty       Float  @default(0)
+  returnedQty   Float  @default(0)
+  lostQty       Float  @default(0)
+  unitCost      Float  @default(0)
+  unitPrice     Float  @default(0)
+
+  consignment Consignment @relation(fields: [consignmentId], references: [id])
+  product     Product     @relation(fields: [productId], references: [id])
+}
+
+model ConsignmentSettlement {
+  id            String   @id @default(uuid())
+  tenantId      String
+  consignmentId String
+  date          DateTime
+  totalValue    Float    @default(0)
+  discount      Float    @default(0)
+  paymentMethod String?
+  notes         String?
+  orderId       String? // Reference to built Order
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  tenant      Tenant                      @relation(fields: [tenantId], references: [id])
+  consignment Consignment                 @relation(fields: [consignmentId], references: [id])
+  items       ConsignmentSettlementItem[]
+}
+
+model ConsignmentSettlementItem {
+  id           String @id @default(uuid())
+  settlementId String
+  productId    String
+  name         String
+  soldQty      Float  @default(0)
+  returnedQty  Float  @default(0)
+  lostQty      Float  @default(0)
+  unitPrice    Float  @default(0)
+  unitCost     Float  @default(0)
+
+  settlement ConsignmentSettlement @relation(fields: [settlementId], references: [id])
+  product    Product               @relation(fields: [productId], references: [id])
+}
+
+// TODO: Fiscal Exports
+
+model PaymentProviderConfig {
+  id           String   @id @default(uuid())
+  tenantId     String
+  provider     String   @default("manual") // manual, mock, stripe, mercadopago
+  mode         String   @default("mock") // mock, manual, live, sandbox
+  enabled      Boolean  @default(true)
+  publicLabel  String   @default("Pagamento Manual")
+  metadataJson String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model PaymentIntent {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  customerId            String?
+  orderId               String?
+  subscriptionRequestId String?
+  subscriptionId        String?
+  amount                Float
+  currency              String    @default("BRL")
+  status                String    @default("pending") // pending, processing, paid, failed, cancelled, refunded, expired
+  provider              String    @default("manual")
+  providerIntentId      String?
+  checkoutUrl           String?
+  pixQrCode             String?
+  dueAt                 DateTime?
+  metadataJson          String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  paidAt                DateTime?
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  customer            Customer?            @relation(fields: [customerId], references: [id])
+  order               Order?               @relation(fields: [orderId], references: [id])
+  subscriptionRequest SubscriptionRequest? @relation(fields: [subscriptionRequestId], references: [id])
+  subscription        Subscription?        @relation(fields: [subscriptionId], references: [id])
+
+  transactions    PaymentTransaction[]
+  reconciliations PaymentReconciliation[]
+  crmDeals        CrmDeal[]
+  communications  CommunicationQueue[]
+}
+
+model PaymentTransaction {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  paymentIntentId       String
+  type                  String   @default("charge") // charge, refund, adjustment
+  status                String   @default("success") // success, failed, pending
+  amount                Float
+  providerTransactionId String?
+  rawJson               String?  @db.Text
+  createdAt             DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id])
+}
+
+model PaymentWebhookEvent {
+  id             String    @id @default(uuid())
+  tenantId       String?
+  provider       String
+  eventId        String
+  eventType      String
+  signatureValid Boolean   @default(false)
+  processed      Boolean   @default(false)
+  processedAt    DateTime?
+  errorMessage   String?   @db.Text
+  rawJson        String    @db.Text
+  createdAt      DateTime  @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([provider, eventId])
+}
+
+model PaymentReconciliation {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  paymentIntentId        String
+  financialTransactionId String?
+  status                 String   @default("pending") // pending, matched, conflict, manual_review
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  paymentIntent        PaymentIntent         @relation(fields: [paymentIntentId], references: [id])
+  financialTransaction FinancialTransaction? @relation(fields: [financialTransactionId], references: [id])
+}
+
+model CrmPipeline {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  type      String   @default("general") // b2c, b2b, subscription, payment, general
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id])
+  stages CrmStage[]
+  deals  CrmDeal[]
+}
+
+model CrmStage {
+  id         String   @id @default(uuid())
+  tenantId   String
+  pipelineId String
+  name       String
+  order      Int
+  color      String?
+  systemKey  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  pipeline CrmPipeline @relation(fields: [pipelineId], references: [id])
+  deals    CrmDeal[]
+}
+
+model CrmDeal {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  pipelineId            String
+  stageId               String
+  customerId            String?
+  subscriptionRequestId String?
+  subscriptionId        String?
+  orderId               String?
+  paymentIntentId       String?
+  title                 String
+  value                 Float     @default(0)
+  status                String    @default("open") // open, won, lost, archived
+  priority              String    @default("normal") // low, normal, high
+  ownerUserId           String?
+  nextFollowUpAt        DateTime?
+  notes                 String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  pipeline            CrmPipeline          @relation(fields: [pipelineId], references: [id])
+  stage               CrmStage             @relation(fields: [stageId], references: [id])
+  customer            Customer?            @relation(fields: [customerId], references: [id])
+  subscriptionRequest SubscriptionRequest? @relation(fields: [subscriptionRequestId], references: [id])
+  subscription        Subscription?        @relation(fields: [subscriptionId], references: [id])
+  order               Order?               @relation(fields: [orderId], references: [id])
+  paymentIntent       PaymentIntent?       @relation(fields: [paymentIntentId], references: [id])
+  activities          CrmActivity[]
+  communications      CommunicationQueue[]
+}
+
+model CrmActivity {
+  id              String    @id @default(uuid())
+  tenantId        String
+  dealId          String?
+  customerId      String?
+  type            String    @default("note") // note, call, whatsapp, email, task, status_change, payment_reminder
+  title           String
+  body            String?   @db.Text
+  dueAt           DateTime?
+  completedAt     DateTime?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  deal     CrmDeal?  @relation(fields: [dealId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+}
+
+model CommunicationTemplate {
+  id            String   @id @default(uuid())
+  tenantId      String
+  channel       String   @default("whatsapp") // whatsapp, email, sms, internal
+  name          String
+  subject       String?
+  body          String   @db.Text
+  variablesJson String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant               @relation(fields: [tenantId], references: [id])
+  queues CommunicationQueue[]
+}
+
+model CommunicationQueue {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  customerId            String?
+  dealId                String?
+  paymentIntentId       String?
+  subscriptionRequestId String?
+  channel               String
+  templateId            String?
+  recipient             String
+  renderedBody          String    @db.Text
+  status                String    @default("draft") // draft, queued, simulated, sent, failed, cancelled
+  provider              String    @default("mock") // mock, manual, whatsapp_placeholder, email_placeholder
+  scheduledAt           DateTime?
+  sentAt                DateTime?
+  errorMessage          String?   @db.Text
+  createdAt             DateTime  @default(now())
+
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id])
+  customer            Customer?              @relation(fields: [customerId], references: [id])
+  deal                CrmDeal?               @relation(fields: [dealId], references: [id])
+  paymentIntent       PaymentIntent?         @relation(fields: [paymentIntentId], references: [id])
+  subscriptionRequest SubscriptionRequest?   @relation(fields: [subscriptionRequestId], references: [id])
+  template            CommunicationTemplate? @relation(fields: [templateId], references: [id])
+}
+
+model GreenCoffeeLot {
+  id           String   @id @default(uuid())
+  tenantId     String
+  name         String
+  origin       String?
+  variety      String?
+  processing   String?
+  harvest      String?
+  supplier     String?
+  sensoryNotes String?  @db.Text
+  costPerKg    Float    @default(0)
+  stockKg      Float    @default(0)
+  status       String   @default("available") // available, reserved, production, empty, blocked
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant                       @relation(fields: [tenantId], references: [id])
+  reservations ProductionInputReservation[]
+  recipeInputs ProductionRecipeInput[]
+}
+
+model ProductionInputReservation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  batchId    String
+  greenLotId String
+  reservedKg Float
+  status     String   @default("active") // active, consumed, released
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  batch    ProductionBatch @relation(fields: [batchId], references: [id])
+  greenLot GreenCoffeeLot  @relation(fields: [greenLotId], references: [id])
+}
+
+model ProductionRecipe {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  productId          String
+  name               String
+  targetYield        Float    @default(0.85) // 85%
+  defaultPackagingId String?
+  defaultCostPerHour Float    @default(0)
+  observations       String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant   Tenant                  @relation(fields: [tenantId], references: [id])
+  product  Product                 @relation(fields: [productId], references: [id])
+  inputs   ProductionRecipeInput[]
+  extras   ProductionRecipeExtra[]
+  profiles RoastProfile[]
+  batches  ProductionBatch[]
+}
+
+model ProductionRecipeInput {
+  id             String   @id @default(uuid())
+  tenantId       String
+  recipeId       String
+  greenLotId     String
+  percent        Float    @default(1)
+  estimatedWaste Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  recipe   ProductionRecipe @relation(fields: [recipeId], references: [id])
+  greenLot GreenCoffeeLot   @relation(fields: [greenLotId], references: [id])
+}
+
+model ProductionRecipeExtra {
+  id        String   @id @default(uuid())
+  tenantId  String
+  recipeId  String
+  itemName  String
+  cost      Float    @default(0)
+  createdAt DateTime @default(now())
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id])
+  recipe ProductionRecipe @relation(fields: [recipeId], references: [id])
+}
+
+model RoastProfile {
+  id         String   @id @default(uuid())
+  tenantId   String
+  recipeId   String
+  name       String
+  totalTime  Int      @default(0) // seconds
+  roastLevel String   @default("medium") // light, medium, medium-dark, dark
+  notes      String?  @db.Text
+  curveJson  String?  @db.Text
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id])
+  recipe  ProductionRecipe  @relation(fields: [recipeId], references: [id])
+  batches ProductionBatch[]
+}
+
+model B2BCatalogItem {
+  id           String   @id @default(uuid())
+  tenantId     String
+  productId    String
+  price        Float
+  moq          Int      @default(1)
+  leadTimeDays Int      @default(0)
+  isVisible    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model QualityReview {
+  id                String   @id @default(uuid())
+  tenantId          String
+  productionBatchId String?
+  productId         String?
+  reviewerUserId    String?
+  status            String   @default("pending_review") // pending_review, approved, approved_with_notes, rejected, blocked, rework_needed
+  scoreTotal        Float?
+  fragranceScore    Float?
+  aromaScore        Float?
+  acidityScore      Float?
+  bodyScore         Float?
+  sweetnessScore    Float?
+  balanceScore      Float?
+  aftertasteScore   Float?
+  defectsScore      Float?
+  notes             String?  @db.Text
+  recommendation    String?  // release_b2c, release_b2b, internal_only, block, rework
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  batch     ProductionBatch? @relation(fields: [productionBatchId], references: [id])
+  product   Product?         @relation(fields: [productId], references: [id])
+  
+  descriptors QualityReviewDescriptor[]
+  defects     QualityReviewDefect[]
+  
+  publicLotTrace PublicLotTrace?
+
+  @@index([tenantId])
+}
+
+model SensoryDescriptor {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  category    String // aroma, flavor, body, acidity, defect, aftertaste, sweetness
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  reviews QualityReviewDescriptor[]
+
+  @@index([tenantId])
+}
+
+model QualityReviewDescriptor {
+  id              String   @id @default(uuid())
+  qualityReviewId String
+  descriptorId    String
+  intensity       String? // low, medium, high
+  note            String?
+
+  review     QualityReview     @relation(fields: [qualityReviewId], references: [id])
+  descriptor SensoryDescriptor @relation(fields: [descriptorId], references: [id])
+
+  @@unique([qualityReviewId, descriptorId])
+}
+
+model QualityDefect {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  severity    String // low, medium, high, critical
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  reviews QualityReviewDefect[]
+
+  @@index([tenantId])
+}
+
+model QualityReviewDefect {
+  id              String   @id @default(uuid())
+  qualityReviewId String
+  defectId        String
+  quantity        Int?
+  note            String?
+
+  review QualityReview @relation(fields: [qualityReviewId], references: [id])
+  defect QualityDefect @relation(fields: [defectId], references: [id])
+
+  @@unique([qualityReviewId, defectId])
+}
+
+model PublicLotTrace {
+  id                String   @id @default(uuid())
+  tenantId          String
+  qualityReviewId   String   @unique
+  productionBatchId String?  @unique
+  productId         String?
+  publicCode        String   @unique
+  status            String   @default("draft") // draft, published, unpublished
+  title             String
+  summary           String?  @db.Text
+  publicScore       Float?
+  publicDescriptorsJson String? @db.Text // Store JSON string of selected descriptors
+  publicOriginJson      String? @db.Text // Store JSON string of origin data
+  roastInfoJson         String? @db.Text // Store JSON string of roast info
+  productInfoJson       String? @db.Text
+  qrUrl                 String?
+  publishedAt       DateTime?
+  unpublishedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  review    QualityReview    @relation(fields: [qualityReviewId], references: [id])
+  batch     ProductionBatch? @relation(fields: [productionBatchId], references: [id])
+  product   Product?         @relation(fields: [productId], references: [id])
+
+  @@index([tenantId])
+  @@index([publicCode])
+}
