@@ -21,8 +21,10 @@ import { Crm } from './pages/Crm';
 import { ConexaoServidor } from './pages/ConexaoServidor';
 
 import { B2BCatalog } from './pages/B2BCatalog';
+import { DigitalMenu } from './pages/DigitalMenu';
+import { PublicMenu } from './pages/PublicMenu';
 
-export type Page = 'dashboard' | 'comercial' | 'clientes' | 'crm' | 'catalogo' | 'b2bcatalog' | 'estoque' | 'producao' | 'financeiro' | 'rh' | 'fiscal' | 'consignacao' | 'assinaturas' | 'config' | 'relatorios' | 'conexao';
+export type Page = 'dashboard' | 'comercial' | 'clientes' | 'crm' | 'catalogo' | 'b2bcatalog' | 'digital_menu' | 'estoque' | 'producao' | 'financeiro' | 'rh' | 'fiscal' | 'consignacao' | 'assinaturas' | 'config' | 'relatorios' | 'conexao';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -43,6 +45,15 @@ export default function App() {
     return (
       <RepositoryProvider providerType={providerType} onFallbackToMock={() => setHasFallenBack(true)}>
         <RastreabilidadePublica />
+      </RepositoryProvider>
+    );
+  }
+
+  if (window.location.pathname.startsWith('/menu/')) {
+    const segments = window.location.pathname.replace('/menu/', '').split('?')[0];
+    return (
+      <RepositoryProvider providerType={providerType} onFallbackToMock={() => setHasFallenBack(true)}>
+        <PublicMenu slug={segments} />
       </RepositoryProvider>
     );
   }
@@ -91,6 +102,8 @@ export default function App() {
         return <Catalogo />;
       case 'b2bcatalog':
         return <B2BCatalog />;
+      case 'digital_menu':
+        return <DigitalMenu />;
       case 'estoque':
         return <Estoque />;
       case 'producao':

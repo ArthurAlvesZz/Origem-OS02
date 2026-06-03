@@ -101,6 +101,16 @@ import {
   getPublicTrace, getTraces, getTraceById, createTraceFromQualityInfo, updateTrace, publishTrace, unpublishTrace
 } from './server/controllers/traceability';
 
+import {
+  getConfig, updateConfig, getCategories, createCategory, updateCategory, deleteCategory,
+  getItems, createItem, updateItem, deleteItem, getOrders as getDigitalMenuOrders, updateOrderStatus,
+  getPublicMenu, createPublicOrder, getPublicOrder
+} from './server/controllers/digitalMenu';
+
+import {
+  getConnectUrl, oauthCallback, getStatus as getMpStatus, disconnect as disconnectMp, webhook as mpWebhook
+} from './server/controllers/paymentMercadoPago';
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -252,6 +262,15 @@ async function startServer() {
   app.get('/api/payments/provider-config', requireDb, requireAuth, asyncHandler(getProviderConfig));
   app.patch('/api/payments/provider-config', requireDb, requireAuth, asyncHandler(updateProviderConfig));
 
+  // Mercado Pago Admin
+  app.get('/api/payments/mercadopago/connect-url', requireDb, requireAuth, asyncHandler(getConnectUrl));
+  app.get('/api/payments/mercadopago/callback', requireDb, asyncHandler(oauthCallback));
+  app.post('/api/payments/mercadopago/disconnect', requireDb, requireAuth, asyncHandler(disconnectMp));
+  app.get('/api/payments/mercadopago/status', requireDb, requireAuth, asyncHandler(getMpStatus));
+
+  // Mercado Pago Webhook 
+  app.post('/api/payments/mercadopago/webhook', requireDb, asyncHandler(mpWebhook));
+
   // ----------------------------------------------------------------------
   // CRM & COMMUNICATIONS
   // ----------------------------------------------------------------------
@@ -303,6 +322,13 @@ async function startServer() {
   app.get('/api/quality/defects', requireDb, requireAuth, asyncHandler(getDefects));
 
   // ----------------------------------------------------------------------
+  // DIGITAL MENU - PUBLIC (No Auth)
+  // ----------------------------------------------------------------------
+  app.get('/api/public/menu/:slug', requireDb, asyncHandler(getPublicMenu));
+  app.post('/api/public/menu/:slug/orders', requireDb, asyncHandler(createPublicOrder));
+  app.get('/api/public/menu/:slug/orders/:id', requireDb, asyncHandler(getPublicOrder));
+
+  // ----------------------------------------------------------------------
   // PUBLIC TRACEABILITY (No auth needed)
   // ----------------------------------------------------------------------
   app.get('/api/public/trace/:publicCode', requireDb, asyncHandler(getPublicTrace));
@@ -323,6 +349,22 @@ async function startServer() {
   app.get('/api/b2b/catalog', requireDb, requireAuth, asyncHandler(getB2BCatalog));
   app.post('/api/b2b/catalog/items', requireDb, requireAuth, asyncHandler(createB2BCatalogItem));
   app.patch('/api/b2b/catalog/items/:id', requireDb, requireAuth, asyncHandler(updateB2BCatalogItem));
+
+  // ----------------------------------------------------------------------
+  // DIGITAL MENU (Admin)
+  // ----------------------------------------------------------------------
+  app.get('/api/digital-menu/config', requireDb, requireAuth, asyncHandler(getConfig));
+  app.patch('/api/digital-menu/config', requireDb, requireAuth, asyncHandler(updateConfig));
+  app.get('/api/digital-menu/categories', requireDb, requireAuth, asyncHandler(getCategories));
+  app.post('/api/digital-menu/categories', requireDb, requireAuth, asyncHandler(createCategory));
+  app.patch('/api/digital-menu/categories/:id', requireDb, requireAuth, asyncHandler(updateCategory));
+  app.delete('/api/digital-menu/categories/:id', requireDb, requireAuth, asyncHandler(deleteCategory));
+  app.get('/api/digital-menu/items', requireDb, requireAuth, asyncHandler(getItems));
+  app.post('/api/digital-menu/items', requireDb, requireAuth, asyncHandler(createItem));
+  app.patch('/api/digital-menu/items/:id', requireDb, requireAuth, asyncHandler(updateItem));
+  app.delete('/api/digital-menu/items/:id', requireDb, requireAuth, asyncHandler(deleteItem));
+  app.get('/api/digital-menu/orders', requireDb, requireAuth, asyncHandler(getDigitalMenuOrders));
+  app.patch('/api/digital-menu/orders/:id/status', requireDb, requireAuth, asyncHandler(updateOrderStatus));
 
   // Consignments Routes
   app.get('/api/partners', requireDb, requireAuth, asyncHandler(getPartners));

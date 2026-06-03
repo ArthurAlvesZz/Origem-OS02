@@ -67,6 +67,11 @@ model Tenant {
   sensoryDescriptors     SensoryDescriptor[]
   qualityDefects         QualityDefect[]
   publicLotTraces        PublicLotTrace[]
+  digitalMenuConfig      DigitalMenuConfig?
+  digitalMenuCategories  DigitalMenuCategory[]
+  digitalMenuItems       DigitalMenuItem[]
+  PlatformFeeLedger      PlatformFeeLedger[]
+  OAuthState             OAuthState[]
 }
 
 model GeneratedDocument {
@@ -296,6 +301,7 @@ model Product {
   subscriptionPlans          SubscriptionPlan[]
   qualityReviews             QualityReview[]
   publicLotTraces            PublicLotTrace[]
+  DigitalMenuItem            DigitalMenuItem[]
 }
 
 model ProductVariant {
@@ -418,6 +424,7 @@ model Order {
   customerId      String?
   customerName    String?
   channel         String    @default("pdv")
+  trackingNumber  String?   @unique
   orderDate       DateTime  @default(now())
   subtotal        Float
   discount        Float     @default(0)
@@ -441,12 +448,13 @@ model Order {
   financialTransactions FinancialTransaction[]
   paymentIntents        PaymentIntent[]
   crmDeals              CrmDeal[]
+  PlatformFeeLedger     PlatformFeeLedger[]
 }
 
 model OrderItem {
   id              String  @id @default(uuid())
   orderId         String
-  productId       String
+  productId       String?
   variantId       String?
   name            String
   sku             String?
@@ -458,7 +466,7 @@ model OrderItem {
   estimatedProfit Float   @default(0)
 
   order   Order           @relation(fields: [orderId], references: [id])
-  product Product         @relation(fields: [productId], references: [id])
+  product Product?        @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 }
 
@@ -482,6 +490,10 @@ model FinancialTransaction {
   description   String
   amount        Float
   paidAmount    Float     @default(0)
+  grossAmount   Float?
+  providerFee   Float?
+  platformFee   Float?
+  netAmount     Float?
   dueDate       DateTime?
   paidAt        DateTime?
   date          DateTime
@@ -552,7 +564,7 @@ model ProductionBatch {
 
   inputs     ProductionInput[]
   extraCosts ProductionExtraCost[]
-  
+
   qualityReviews QualityReview[]
   publicLotTrace PublicLotTrace?
 }
@@ -680,16 +692,48 @@ model ConsignmentSettlementItem {
 
 // TODO: Fiscal Exports
 
+model PlatformFeeLedger {
+  id              String   @id @default(uuid())
+  tenantId        String
+  orderId         String?
+  amount          Float
+  paymentIntentId String?
+  status          String   @default("pending") // pending, settled
+  description     String
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order? @relation(fields: [orderId], references: [id])
+}
+
+model OAuthState {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  userId                String?
+  stateHash             String    @unique
+  codeVerifierEncrypted String
+  expiresAt             DateTime
+  consumedAt            DateTime?
+  createdAt             DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
 model PaymentProviderConfig {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   tenantId     String
-  provider     String   @default("manual") // manual, mock, stripe, mercadopago
-  mode         String   @default("mock") // mock, manual, live, sandbox
-  enabled      Boolean  @default(true)
-  publicLabel  String   @default("Pagamento Manual")
+  provider     String    @default("manual") // manual, mock, stripe, mercadopago
+  mode         String    @default("mock") // mock, manual, live, sandbox
+  enabled      Boolean   @default(true)
+  publicLabel  String    @default("Pagamento Manual")
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  publicKey    String?
+  userId       String?
+  expiresAt    DateTime?
   metadataJson String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 }
@@ -702,6 +746,7 @@ model PaymentIntent {
   subscriptionRequestId String?
   subscriptionId        String?
   amount                Float
+  platformFeeAmount     Float?
   currency              String    @default("BRL")
   status                String    @default("pending") // pending, processing, paid, failed, cancelled, refunded, expired
   provider              String    @default("manual")
@@ -1011,12 +1056,12 @@ model B2BCatalogItem {
 }
 
 model QualityReview {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   tenantId          String
   productionBatchId String?
   productId         String?
   reviewerUserId    String?
-  status            String   @default("pending_review") // pending_review, approved, approved_with_notes, rejected, blocked, rework_needed
+  status            String    @default("pending_review") // pending_review, approved, approved_with_notes, rejected, blocked, rework_needed
   scoreTotal        Float?
   fragranceScore    Float?
   aromaScore        Float?
@@ -1026,33 +1071,33 @@ model QualityReview {
   balanceScore      Float?
   aftertasteScore   Float?
   defectsScore      Float?
-  notes             String?  @db.Text
-  recommendation    String?  // release_b2c, release_b2b, internal_only, block, rework
+  notes             String?   @db.Text
+  recommendation    String? // release_b2c, release_b2b, internal_only, block, rework
   reviewedAt        DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  tenant    Tenant           @relation(fields: [tenantId], references: [id])
-  batch     ProductionBatch? @relation(fields: [productionBatchId], references: [id])
-  product   Product?         @relation(fields: [productId], references: [id])
-  
+  tenant  Tenant           @relation(fields: [tenantId], references: [id])
+  batch   ProductionBatch? @relation(fields: [productionBatchId], references: [id])
+  product Product?         @relation(fields: [productId], references: [id])
+
   descriptors QualityReviewDescriptor[]
   defects     QualityReviewDefect[]
-  
+
   publicLotTrace PublicLotTrace?
 
   @@index([tenantId])
 }
 
 model SensoryDescriptor {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String
-  category    String // aroma, flavor, body, acidity, defect, aftertaste, sweetness
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  category  String // aroma, flavor, body, acidity, defect, aftertaste, sweetness
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   reviews QualityReviewDescriptor[]
 
@@ -1060,7 +1105,7 @@ model SensoryDescriptor {
 }
 
 model QualityReviewDescriptor {
-  id              String   @id @default(uuid())
+  id              String  @id @default(uuid())
   qualityReviewId String
   descriptorId    String
   intensity       String? // low, medium, high
@@ -1073,14 +1118,14 @@ model QualityReviewDescriptor {
 }
 
 model QualityDefect {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String
-  severity    String // low, medium, high, critical
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  severity  String // low, medium, high, critical
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   reviews QualityReviewDefect[]
 
@@ -1088,7 +1133,7 @@ model QualityDefect {
 }
 
 model QualityReviewDefect {
-  id              String   @id @default(uuid())
+  id              String  @id @default(uuid())
   qualityReviewId String
   defectId        String
   quantity        Int?
@@ -1101,31 +1146,93 @@ model QualityReviewDefect {
 }
 
 model PublicLotTrace {
-  id                String   @id @default(uuid())
-  tenantId          String
-  qualityReviewId   String   @unique
-  productionBatchId String?  @unique
-  productId         String?
-  publicCode        String   @unique
-  status            String   @default("draft") // draft, published, unpublished
-  title             String
-  summary           String?  @db.Text
-  publicScore       Float?
-  publicDescriptorsJson String? @db.Text // Store JSON string of selected descriptors
-  publicOriginJson      String? @db.Text // Store JSON string of origin data
-  roastInfoJson         String? @db.Text // Store JSON string of roast info
-  productInfoJson       String? @db.Text
+  id                    String    @id @default(uuid())
+  tenantId              String
+  qualityReviewId       String    @unique
+  productionBatchId     String?   @unique
+  productId             String?
+  publicCode            String    @unique
+  status                String    @default("draft") // draft, published, unpublished
+  title                 String
+  summary               String?   @db.Text
+  publicScore           Float?
+  publicDescriptorsJson String?   @db.Text // Store JSON string of selected descriptors
+  publicOriginJson      String?   @db.Text // Store JSON string of origin data
+  roastInfoJson         String?   @db.Text // Store JSON string of roast info
+  productInfoJson       String?   @db.Text
   qrUrl                 String?
-  publishedAt       DateTime?
-  unpublishedAt     DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  publishedAt           DateTime?
+  unpublishedAt         DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  tenant    Tenant           @relation(fields: [tenantId], references: [id])
-  review    QualityReview    @relation(fields: [qualityReviewId], references: [id])
-  batch     ProductionBatch? @relation(fields: [productionBatchId], references: [id])
-  product   Product?         @relation(fields: [productId], references: [id])
+  tenant  Tenant           @relation(fields: [tenantId], references: [id])
+  review  QualityReview    @relation(fields: [qualityReviewId], references: [id])
+  batch   ProductionBatch? @relation(fields: [productionBatchId], references: [id])
+  product Product?         @relation(fields: [productId], references: [id])
 
   @@index([tenantId])
   @@index([publicCode])
+}
+
+model DigitalMenuConfig {
+  id                   String   @id @default(uuid())
+  tenantId             String   @unique
+  slug                 String   @unique
+  publicName           String
+  logoUrl              String?
+  coverUrl             String?
+  description          String?  @db.Text
+  whatsapp             String?
+  isOpen               Boolean  @default(true)
+  acceptsPickup        Boolean  @default(true)
+  acceptsDelivery      Boolean  @default(true)
+  deliveryFee          Float    @default(0)
+  minimumOrder         Float    @default(0)
+  estimatedPrepMinutes Int      @default(30)
+  paymentMethodsJson   String?  @db.Text
+  openingHoursJson     String?  @db.Text
+  platformFeeType      String   @default("none") // none, fixed, percent
+  platformFeeValue     Float    @default(0)
+  paymentProvider      String   @default("manual_pix") // manual_pix, mercadopago
+  pixKeyManual         String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model DigitalMenuCategory {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?  @db.Text
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant            @relation(fields: [tenantId], references: [id])
+  items  DigitalMenuItem[]
+}
+
+model DigitalMenuItem {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  categoryId         String
+  productId          String?
+  name               String
+  description        String?  @db.Text
+  imageUrl           String?
+  price              Float    @default(0)
+  active             Boolean  @default(true)
+  featured           Boolean  @default(false)
+  preparationMinutes Int?
+  stockLinked        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id])
+  category DigitalMenuCategory @relation(fields: [categoryId], references: [id])
+  product  Product?            @relation(fields: [productId], references: [id])
 }

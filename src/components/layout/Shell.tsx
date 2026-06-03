@@ -20,6 +20,7 @@ const navItems = [
   { id: 'assinaturas', label: 'Assinaturas', icon: Coffee },
   { id: 'catalogo', label: 'Catálogo', icon: Layers },
   { id: 'b2bcatalog', label: 'Catálogo B2B', icon: Briefcase },
+  { id: 'digital_menu', label: 'Cardápio Digital', icon: Briefcase },
   { id: 'consignacao', label: 'Consignação', icon: Briefcase },
   { id: 'estoque', label: 'Estoque', icon: Package },
   { id: 'producao', label: 'Produção', icon: Factory },

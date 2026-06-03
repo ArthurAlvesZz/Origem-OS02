@@ -28,6 +28,7 @@ import { MockAdvancedProductionRepository } from './mock/MockAdvancedProductionR
 import { MockB2BCatalogRepository } from './mock/MockB2BCatalogRepository';
 import { MockQualityRepository } from './mock/MockQualityRepository';
 import { MockTraceabilityRepository } from './mock/MockTraceabilityRepository';
+import { MockDigitalMenuRepository } from './mock/MockDigitalMenuRepository';
 
 import { ApiProductRepository } from './api/ApiProductRepository';
 import { ApiInventoryRepository } from './api/ApiInventoryRepository';
@@ -47,6 +48,7 @@ import { ApiAdvancedProductionRepository } from './api/ApiAdvancedProductionRepo
 import { ApiB2BCatalogRepository } from './api/ApiB2BCatalogRepository';
 import { ApiQualityRepository } from './api/ApiQualityRepository';
 import { ApiTraceabilityRepository } from './api/ApiTraceabilityRepository';
+import { ApiDigitalMenuRepository } from './api/ApiDigitalMenuRepository';
 
 import { ITeamRepository } from './interfaces/ITeamRepository';
 import { IStorefrontRepository } from './interfaces/IStorefrontRepository';
@@ -56,6 +58,7 @@ import { IAdvancedProductionRepository } from './interfaces/IAdvancedProductionR
 import { IB2BCatalogRepository } from './interfaces/IB2BCatalogRepository';
 import { IQualityRepository } from './interfaces/IQualityRepository';
 import { ITraceabilityRepository } from './interfaces/ITraceabilityRepository';
+import { IDigitalMenuRepository } from './interfaces/IDigitalMenuRepository';
 
 import { safeFetch } from './api/apiClient';
 
@@ -80,6 +83,7 @@ interface Repositories {
   b2bCatalogRepo: IB2BCatalogRepository;
   qualityRepo: IQualityRepository;
   traceabilityRepo: ITraceabilityRepository;
+  digitalMenuRepo: IDigitalMenuRepository;
   actualType: DataProviderType;
 }
 
@@ -140,6 +144,7 @@ export function RepositoryProvider({ children, providerType = 'mock', onFallback
     b2bCatalogRepo: new MockB2BCatalogRepository(),
     qualityRepo: new MockQualityRepository(),
     traceabilityRepo: new MockTraceabilityRepository(),
+    digitalMenuRepo: new MockDigitalMenuRepository(),
     actualType
   } : {
     productRepo: new ApiProductRepository(),
@@ -160,6 +165,7 @@ export function RepositoryProvider({ children, providerType = 'mock', onFallback
     b2bCatalogRepo: new ApiB2BCatalogRepository(),
     qualityRepo: new ApiQualityRepository(),
     traceabilityRepo: new ApiTraceabilityRepository(),
+    digitalMenuRepo: new ApiDigitalMenuRepository(),
     actualType
   };
 
